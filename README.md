@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SVP-CIM Project
 
 This repository implements an approximate Shortest Vector Problem (SVP) solver using a Coherent Ising Machine (CIM) simulator.
@@ -34,3 +35,7 @@ python svp_cim.py
 ```
 
 Adjust hyperparameters in `svp_cim.py` as needed.
+=======
+# SVP-CIM
+To solve the Shortest Vector Problem using simulated Coherent Ising Machine (using SimCIM)
+>>>>>>> origin/main
