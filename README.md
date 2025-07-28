@@ -1,6 +1,8 @@
-Solving the Shortest Vector Problem (SVP) while using the a simulated Coherent Ising Machine (CIM), publicly available at https://github.com/mcmahon-lab/cim-optimizer . 
+# What is this project ?
 
-Part of my MSc Thesis at the Imperial College London, available at [TO BE UPLOADED ON THE ARXIV]
+This code is for solving the Shortest Vector Problem (SVP) while using the a simulated Coherent Ising Machine (CIM) as a subroutine; the code for the CIM simulator is publicly available at https://github.com/mcmahon-lab/cim-optimizer. 
+
+It is part of my MSc Thesis at the Imperial College London, available at [TO BE UPLOADED ON THE ARXIV]
 
 Feel free to give me feedback !
 
