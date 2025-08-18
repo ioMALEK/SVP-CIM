@@ -1,220 +1,194 @@
 #!/usr/bin/env python3
 """
-optimise_cim_static.py
-======================
+Optuna-based hyper-parameter search for a *static* Coherent Ising Machine
+on a single SVP lattice dimension.
 
-Run one Optuna study (CAC only) for a sub-dimension X.
-
-Called by sweep_cim_static_dims.py, which passes:
-    --dim   X
-    --jobs  <cores>
-    --root  <ATTEMPT-folder>
-
-Key points
-• Reference optimum comes from cim_svp.extras.classical_solvers
-  – exact enumeration up to enum_thresh
-  – Monte-Carlo afterwards.
-• Works regardless of current working directory:
-  lattice folder resolved relative to project root.
-• Accepts both dim50_seed17.txt and dim50_17.txt.
+After the run finishes you can either
+    • pass --auto-plot to generate figures automatically, or
+    • answer y/yes to the prompt if running interactively.
 """
-# ───── stdlib ─────────────────────────────────────────────────────────
-import os, sys, math, argparse, datetime, itertools, json, re
+
+from __future__ import annotations
+import argparse
+import json
+import logging
+import random
+import subprocess
+import sys
+import time
 from pathlib import Path
-from decimal import getcontext
+from typing import Any, Tuple
 
-# ───── third-party ───────────────────────────────────────────────────
-
-import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
 import optuna
-from joblib import Parallel, delayed
+from optuna.trial import TrialState
 
-# ───── project helpers ───────────────────────────────────────────────
-from cim_optimizer.solve_Ising import Ising
-from cim_svp import (
-    load_lattice, vec_sq_norm_int, gram_int, build_J,
-    sq_from_spins, sqrt_int, extract_spins, make_seed
-)
-from cim_svp.extras.classical_solvers import (
-    shortest_enum, shortest_monte_carlo          # ← reference solvers
-)
+from cim_svp.utils.timeouts import time_limit
+from cim_svp.result_io import RUN_ROOT, save_dimension_result
 
-# ───── constants ─────────────────────────────────────────────────────
-getcontext().prec = 120
-GLOBAL_SEED  = 2025
-EVAL_RUNS    = 1_000
-DIM_FULL     = 50
-LATTICE_SEED = 17
+LOG = logging.getLogger(__name__)
 
-# ---------- absolute lattice folder ----------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-LATTICE_DIR  = PROJECT_ROOT / "svp_lattices"
+# ─────────────────── fallback CIM stub (remove when real) ────────────
+try:
+    from cim_svp.cim_runner import run_cim_trial  # type: ignore
+except ModuleNotFoundError:                       # pragma: no cover
+    LOG.warning("cim_svp.cim_runner not found → using random stub")
 
-# ═════════════ flexible lattice loader ═══════════════════════════════
-def load_lattice_flex(dim: int, seed: int) -> np.ndarray:
-    """Try dimXX_seedYY.txt, else dimXX_YY.txt (both under LATTICE_DIR)."""
-    try:
-        return load_lattice(dim, seed, folder=str(LATTICE_DIR))
-    except FileNotFoundError:
-        alt = LATTICE_DIR / f"dim{dim}_{seed}.txt"
-        if not alt.is_file():
-            raise
-        rows = [[int(x) for x in re.findall(r"-?\\d+", ln)]
-                for ln in alt.read_text().splitlines()
-                if re.search(r"\\d", ln)]
-        M = np.array(rows, dtype=object)
-        if M.shape != (dim, dim):
-            raise ValueError(f"{alt} shape {M.shape}, expected ({dim},{dim})")
-        return M
+    def run_cim_trial(dim: int, **params) -> Tuple[list[int], float]:  # type: ignore
+        pump_rate = params.get("pump_rate", 1.0)
+        vec = (np.sign(np.random.randn(dim)) + pump_rate * 0.01 *
+               np.random.randn(dim)).astype(int).tolist()
+        norm = float(np.linalg.norm(vec))
+        return vec, norm
 
-# ═════════════ reference optimum via classical_solvers ═══════════════
-def reference_optimum(B: np.ndarray,
-                      enum_thresh: int, mc_samples: int,
-                      seed: int | None) -> float:
-    K = B.shape[0]
-    if K <= enum_thresh:
-        _vec, norm = shortest_enum(B, max_dim=enum_thresh)
-    else:
-        _vec, norm = shortest_monte_carlo(B, samples=mc_samples, seed=seed)
-    return norm
 
-# ═════════════ helper I/O (cast first) ═══════════════════════════════
-def save_hist(norms, opt_norm, folder: Path):
-    folder.mkdir(parents=True, exist_ok=True)
-    if norms.size == 0:
-        return
-    uniq = np.unique(norms[~np.isinf(norms)])
-    bins = min(40, max(1, uniq.size - 1))
-    plt.figure(figsize=(6, 4))
-    if bins > 1:
-        sns.histplot(norms, bins=bins, color="steelblue")
-    else:
-        plt.axvline(norms[0], lw=6, color="steelblue")
-    plt.axvline(opt_norm, color="red", ls="--", label="shortest")
-    plt.xlabel("norm"); plt.ylabel("count"); plt.legend(); plt.tight_layout()
-    plt.savefig(folder / "norm_hist.png", dpi=150)
-    plt.close()
-
-def safe_save(root: Path, study, opt_norm, norms):
-    try:
-        (root/"data").mkdir(parents=True, exist_ok=True)
-        norms = np.asarray(norms, dtype=float)          # cast first
-        save_hist(norms, opt_norm, root/"plots")
-        pd.DataFrame({"norm": norms}).to_csv(root/"data"/"spin_norms.csv",
-                                            index=False)
-        study.trials_dataframe().to_csv(root/"data"/"trials.csv", index=False)
-        json.dump({"best_parameters": study.best_trial.params,
-                   "cmd": " ".join(sys.argv),
-                   "finished": datetime.datetime.now().isoformat()},
-                  open(root/"README.json","w"), indent=2)
-    except Exception as e:
-        print("[WARN] saving failed:", e, flush=True)
-
-# ───── Optuna callbacks ──────────────────────────────────────────────
-class StopOnPlateau:
-    def __init__(self, patience): self.best=math.inf; self.cnt=0; self.p=patience
-    def __call__(self, st, tr):
-        if tr.value < self.best - 1e-12: self.best, self.cnt = tr.value, 0
-        else:
-            self.cnt += 1
-            if self.cnt >= self.p: print("[EARLY-STOP]"); st.stop()
-def StopIfEfficiency(t=0.99):
-    return lambda st,tr: st.stop() if tr.value >= t else None
-
-# ═════════════════════════════ main ══════════════════════════════════
-def main():
-    pa = argparse.ArgumentParser()
-    pa.add_argument("--dim",  type=int, required=True)
-    pa.add_argument("--root", type=str,  required=True)
-    pa.add_argument("--jobs", type=int,  default=1)
-    pa.add_argument("--n-trials",   type=int, default=400)
-    pa.add_argument("--patience",   type=int, default=50)
-    pa.add_argument("--enum-thresh",type=int, default=12)
-    pa.add_argument("--mc-samples", type=int, default=200_000)
-    args = pa.parse_args()
-
-    for v in ("OMP_NUM_THREADS","MKL_NUM_THREADS","NUMEXPR_NUM_THREADS"):
-        os.environ[v] = str(args.jobs)
-
-    root = Path(args.root) / f"X{args.dim:02d}"
-    (root/"data").mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] results → {root}", flush=True)
-
-    # ---------- load lattice ----------------------------------------
-    B50 = load_lattice_flex(DIM_FULL, LATTICE_SEED)
-    B   = B50[np.argsort([int(vec_sq_norm_int(v)) for v in B50])
-             ][:args.dim]
-
-    G = gram_int(B);  J = build_J(B)
-    solver = Ising(J=J, h=np.zeros(args.dim))
-
-    print("[INFO] computing reference optimum …", flush=True)
-    opt_norm = reference_optimum(B,
-                                 enum_thresh=args.enum_thresh,
-                                 mc_samples=args.mc_samples,
-                                 seed=make_seed("ref", args.dim))
-    print(f"[INFO] |b*| = {opt_norm:.4g}", flush=True)
-
-    study = optuna.create_study(direction="maximize",
-        sampler=optuna.samplers.TPESampler(multivariate=True,
-                                           seed=GLOBAL_SEED + args.dim,
-                                           n_startup_trials=30),
-        pruner=optuna.pruners.HyperbandPruner(min_resource=400,
-                                              max_resource=1000,
-                                              reduction_factor=3))
-
-    def objective(trial):
-        hp = dict(
-            dt    = trial.suggest_float("dt",    0.01, 0.07),
-            mu    = trial.suggest_float("mu",    0.05, 0.8),
-            r     = trial.suggest_float("r",     0.05, 0.6),
-            noise = trial.suggest_float("noise", 1e-4, 0.30, log=True),
-            steps = trial.suggest_int  ("steps", 400,  1000, step=100),
+# ═════════════════════════════════ objective / optimiser ═════════════
+def objective_factory(dim: int):
+    def objective(trial: optuna.trial.Trial) -> float:
+        pump_rate = 10.0 ** trial.suggest_float("pump_rate_log10", -1.0, 1.0)
+        feedback_rate = trial.suggest_float("feedback_rate", 0.0, 1.0)
+        num_roundtrips = trial.suggest_int("num_roundtrips", 50, 500, log=True)
+        vec, norm = run_cim_trial(
+            dim=dim,
+            pump_rate=pump_rate,
+            feedback_rate=feedback_rate,
+            num_roundtrips=num_roundtrips,
         )
-        runs  = 20 if trial.number < 50 else 100
-        seeds = np.random.randint(2**31 - 1, size=runs)
+        trial.set_user_attr("vector", vec)
+        return norm
+    return objective
 
-        def one(sd):
-            np.random.seed(sd)
-            res = solver.solve(num_timesteps_per_run=hp["steps"],
-                               cac_time_step=hp["dt"],
-                               cac_mu=hp["mu"], cac_r=hp["r"],
-                               cac_noise=hp["noise"],
-                               num_runs=1, use_CAC=True, use_GPU=False,
-                               suppress_statements=True)
-            s = extract_spins(res, args.dim)[0]
-            return sqrt_int(sq_from_spins(s, G))
 
-        norms = Parallel(n_jobs=args.jobs)(delayed(one)(sd) for sd in seeds)
-        return float(opt_norm / np.mean(norms))
+def optimise_dim(
+    dim: int,
+    *,
+    max_trials: int = 1_000,
+    patience: int = 100,
+    timeout_s: float | None = None,
+    theoretical_bound: float | None = None,
+) -> dict[str, Any]:
+    study = optuna.create_study(direction="minimize")
+    objective = objective_factory(dim)
 
-    study.optimize(objective, n_trials=args.n_trials, n_jobs=1,
-                   show_progress_bar=(args.jobs == 1),
-                   callbacks=[StopOnPlateau(args.patience),
-                              StopIfEfficiency(0.99)])
+    def early_stop(st: optuna.study.Study, tr: optuna.trial.FrozenTrial) -> None:
+        if not st.best_trials:
+            return
+        if theoretical_bound is not None and st.best_value <= theoretical_bound:
+            st.set_user_attr("stop_reason", "theoretical_bound")
+            st.stop()
+            return
+        last_improve = st.best_trial.number
+        if tr.number - last_improve >= patience:
+            st.set_user_attr("stop_reason", "patience")
+            st.stop()
 
-    # ---------- final evaluation ------------------------------------
-    best  = study.best_trial.params
-    seeds = np.random.randint(2**31 - 1, size=EVAL_RUNS)
+    t0 = time.time()
+    stop_reason = "finished"
+    try:
+        with time_limit(timeout_s):
+            study.optimize(
+                objective,
+                n_trials=max_trials,
+                callbacks=[early_stop],
+                show_progress_bar=False,
+            )
+    except TimeoutError:
+        stop_reason = "timeout"
+    except KeyboardInterrupt:
+        stop_reason = "keyboard_interrupt"
+        raise
 
-    def run_eval(sd):
-        np.random.seed(sd)
-        res = solver.solve(num_timesteps_per_run=best["steps"],
-                           cac_time_step=best["dt"],
-                           cac_mu=best["mu"], cac_r=best["r"],
-                           cac_noise=best["noise"],
-                           num_runs=1, use_CAC=True, use_GPU=False,
-                           suppress_statements=True)
-        s = extract_spins(res, args.dim)[0]
-        return sqrt_int(sq_from_spins(s, G))
+    elapsed = time.time() - t0
+    best_val = study.best_value if study.best_trials else float("inf")
+    best_par = study.best_trial.params if study.best_trials else {}
 
-    norms = Parallel(n_jobs=args.jobs)(delayed(run_eval)(sd) for sd in seeds)
-    safe_save(root, study, opt_norm, norms)
-    print(f"[DONE] {root}", flush=True)
+    return dict(
+        dimension=dim,
+        best_norm=best_val,
+        best_params=best_par,
+        trials_run=len(study.trials),
+        pruned_trials=len([t for t in study.trials if t.state == TrialState.PRUNED]),
+        elapsed_s=elapsed,
+        stop_reason=study.user_attrs.get("stop_reason", stop_reason),
+    )
+
+
+# ═══════════════════════ CLI / entry-point helpers ═══════════════════
+def _setup_logging(verbosity: int) -> None:
+    level = logging.WARNING - 10 * min(3, verbosity)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s optimise [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
+def _parse(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("--dim", type=int, required=True)
+    p.add_argument("--max-trials", type=int, default=1_000)
+    p.add_argument("--patience", type=int, default=100)
+    p.add_argument("--timeout-s", type=float)
+    p.add_argument("--bound", type=float)
+    p.add_argument("--auto-plot", action="store_true",
+                   help="Run cim_svp.plots --run-dir <this> --all after finishing")
+    p.add_argument("-v", "--verbose", action="count", default=0)
+    return p.parse_args(argv)
+
+
+def _maybe_run_plotter(auto: bool) -> None:
+    """
+    Decide whether to call the plotting module.
+    • if --auto-plot      → always run
+    • else if stdin TTY   → ask the user
+    • else                → skip
+    """
+    if auto:
+        answer = "y"
+    elif sys.stdin.isatty():
+        try:
+            answer = input("Generate plots for this run? [y/N]: ").strip().lower()
+        except EOFError:      # piped stdin
+            return
+    else:
+        return
+
+    if answer not in {"y", "yes"}:
+        return
+
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "cim_svp.plots",
+             "--run-dir", str(RUN_ROOT), "--all"],
+            check=True,
+        )
+    except Exception as exc:                           # noqa: BLE001
+        LOG.error("Plotting failed: %s", exc)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse(argv)
+    _setup_logging(args.verbose)
+
+    try:
+        res = optimise_dim(
+            dim=args.dim,
+            max_trials=args.max_trials,
+            patience=args.patience,
+            timeout_s=args.timeout_s,
+            theoretical_bound=args.bound,
+        )
+    except KeyboardInterrupt:
+        LOG.warning("Interrupted; saving partial data.")
+        res = dict(dimension=args.dim, stop_reason="keyboard_interrupt")
+
+    save_dimension_result(args.dim, res)
+    LOG.info("Saved results for dim %d → %s",
+             args.dim, RUN_ROOT.relative_to(Path.cwd()))
+    json.dump(res, sys.stdout, indent=2, default=str)
+    print()
+
+    _maybe_run_plotter(args.auto_plot)
 
 
 if __name__ == "__main__":
