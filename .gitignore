@@ -107,4 +107,4 @@ cim_state_*.pkl
 # Project archives (do NOT commit)
 #################################################################
 ARCHIVE/
-ARCHIVE_TO_BE_PROCESSED/
+ARCHIVE_TO_BE_PROCESSED/auto_push.py
