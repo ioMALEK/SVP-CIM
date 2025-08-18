@@ -1,8 +1,110 @@
+#################################################################
+# macOS system files
+#################################################################
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+#################################################################
+# Python: byte-code, packaging, venv, C-extensions
+#################################################################
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+*.dll
+*.pyd
+*.o
+*.obj
+*.a
+*.exp
+*.lib
+*.whl
+
+# Virtual environments
+.venv/
 venv/
-*.pyc
-# Xcode
-xcuserdata/
-*.xcworkspace
-*.xcodeproj
+ENV/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+wheelhouse/
+
+#################################################################
+# Testing & coverage
+#################################################################
+.pytest_cache/
+htmlcov/
+.tox/
+.coverage
+coverage.xml
+nosetests.xml
+*.cover
+*.py,cover
+
+#################################################################
+# Jupyter notebooks
+#################################################################
+.ipynb_checkpoints/
+*.ipynb
+
+#################################################################
+# Editor / IDE settings
+#################################################################
+.vscode/
+.history/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+#################################################################
+# Logs, runtime outputs, caches
+#################################################################
+logs/
+*.log
+*.out
+*.err
+*.trace
+profile*.txt
+cache/
+tmp/
+temp/
+
+#################################################################
+# Optuna artifacts
+#################################################################
+*.db
+*.sqlite
+optuna_studies/
+
+#################################################################
+# Plot & data artifacts
+#################################################################
+*.png
+*.pdf
+*.svg
+figures/
+results/
+data/raw/
+data/interim/
+
+#################################################################
+# Application-specific CIM artifacts
+#################################################################
+cim_state_*.npz
+cim_state_*.pkl
+
+#################################################################
+# Project archives (do NOT commit)
+#################################################################
+ARCHIVE/
+ARCHIVE_TO_BE_PROCESSED/
