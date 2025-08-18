@@ -1,0 +1,11 @@
+{
+  "best_parameters": {
+    "dt": 0.022393947027743086,
+    "mu": 0.10581008141382743,
+    "r": 0.5013841434479028,
+    "noise": 0.2430655757270537,
+    "steps": 600
+  },
+  "cmd": "/Users/ange/Desktop/svp_cim_project/scripts/optimise_cim_static.py --dim 26 --jobs 7 --root New_Optimisation/2025-08-17/ATTEMPT-10",
+  "finished": "2025-08-17T21:08:57.186215"
+}

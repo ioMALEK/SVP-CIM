@@ -1,0 +1,15 @@
+axes_sizes:
+  dt: 12
+  mu: 4
+  r: 4
+  sig: 4
+dims:
+- 5
+- 6
+- 7
+dt_radius: 3
+final_runs: 1000
+global_seed: 2025
+greedy_budget: 600
+runs_per_eval: 20
+timestamp: '2025-08-16 02:20:19'

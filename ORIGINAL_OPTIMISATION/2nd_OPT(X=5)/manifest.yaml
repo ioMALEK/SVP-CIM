@@ -1,0 +1,15 @@
+script: run_cim_greedy_x5.py
+global_seed: 2025
+grid_sizes:
+  dt: 40
+  mu: 4
+  r: 4
+  sig: 4
+greedy_runs: 100
+runs_per_eval: 10
+final_runs: 250
+X: 5
+optimum_norm: 4.225869259423844e+147
+timestamp: '2025-08-15 22:10:21'
+lattice_dim: 50
+lattice_seed: 17
