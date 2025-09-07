@@ -1,0 +1,2 @@
+outer,batch,Q,gamma,R,best_norm,eta_CIM,eta_CPM,Sigma_CPM,wall_time
+60,0,1,0.04095,385,3.52981891748843e+135,1.0,1.0,3.8950644686583954e+136,26.39

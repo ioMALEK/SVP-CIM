@@ -1,0 +1,2 @@
+number,value,datetime_start,datetime_complete,duration,params_dt,params_mu,params_noise,params_r,params_steps,state
+0,1.0,2025-08-19 11:14:22.057138,2025-08-19 11:14:24.958147,0 days 00:00:02.901009,0.032735242578863184,0.5588234341884508,0.011116141836147835,0.16336110376685203,250,COMPLETE

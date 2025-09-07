@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cim_svp"
+version = "0.1.0"
+dependencies = [
+    # ===== CORE ALGORITHMS =====
+    "cim-optimizer==1.0.4",
+    "optuna==4.4.0",
+    "fpylll==0.6.4",
+
+    # ===== DEEP-LEARNING BACKEND =====
+    "torch>=2.6.0,<3.0",
+
+    # ===== NUMERICS & DATA =====
+    "numpy>=1.24,<2.0",
+    "scipy>=1.12.0",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.5.0",
+    "joblib>=1.4.0",
+
+    # ===== VISUALISATION =====
+    "matplotlib==3.5.3",
+    "seaborn==0.12.2",
+    "networkx>=3.3.0",
+
+    # ===== UX / UTILITIES =====
+    "tqdm>=4.66.0",
+    "typer[all]>=0.12.0",
+    "PyYAML>=6.0",
+
+    # ===== DEV / NOTEBOOK =====
+    "ipykernel>=6.29.0",
+    "jupyterlab>=4.1.0",
+    "pytest>=8.0.0",
+    "black>=24.3.0",
+    "isort>=5.13.0",
+    "mypy",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cim_svp*"]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

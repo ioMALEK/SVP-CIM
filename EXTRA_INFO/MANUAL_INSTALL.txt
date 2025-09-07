@@ -1,0 +1,13 @@
+# if you use virtual environment (recommended)
+source .venv/bin/activate
+
+# all required packages (may take some time ...)
+pip install \
+"torch" "torchvision" "torchaudio" --index-url https://download.pytorch.org/whl/cpu \
+"cim-optimizer==1.0.4" "fpylll==0.6.4" \
+"optuna==4.4.0" \
+"numpy>=1.24,<2.0" "scipy>=1.12.0" "pandas>=2.2.0" "scikit-learn>=1.5.0" "joblib>=1.4.0" \
+"matplotlib>=3.9.0" "seaborn>=0.14.0" "networkx>=3.3.0" \
+"tqdm>=4.66.0" "typer[all]>=0.12.0" "PyYAML>=6.0" \
+"ipykernel>=6.29.0" "jupyterlab>=4.1.0" \
+"pytest>=8.0.0" "black>=24.3.0" "isort>=5.13.0" "mypy"

@@ -1,0 +1,15 @@
+{
+  "best_parameters": {
+    "dt": 0.04310978797695707,
+    "mu": 0.6894435668494991,
+    "r": 0.2976271219431712,
+    "noise": 0.030591025148146656,
+    "steps": 150
+  },
+  "best_value": 1.0,
+  "n_trials": 2,
+  "opt_norm": 5.023360387649709e+147,
+  "b_min_norm": 9.915380102491619e+147,
+  "cmd": "scripts/optimise_cim_static.py --dim 4 --tag MID_4_10 --jobs 6 --fast --n-trials 300",
+  "finished": "2025-08-19T11:14:19.250200"
+}
