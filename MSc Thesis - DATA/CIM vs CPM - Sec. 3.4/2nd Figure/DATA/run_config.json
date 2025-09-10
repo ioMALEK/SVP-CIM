@@ -1,0 +1,50 @@
+{
+  "RNG_SEED": 42,
+  "MAX_OUTER": 10000,
+  "N_JOBS": 5,
+  "T_TIME": 400,
+  "DEVICE": "cpu",
+  "BATCH_SIZE": 1,
+  "BASE_TRIALS_Q": {
+    "2": 100,
+    "3": 100,
+    "4": 50,
+    "5": 50,
+    "6": 15,
+    "7": 15,
+    "8": 15
+  },
+  "BASE_EVAL_PER_TR": 30,
+  "BASE_M_EVAL_INC": 150,
+  "SMALL_STEP": 1.0003,
+  "BIG_STEP": 1.02,
+  "NO_IMPROV_BIG": 20,
+  "GAMMA_START": {
+    "2": 0.061,
+    "3": 0.1,
+    "4": 0.16,
+    "5": 0.24,
+    "6": 0.32,
+    "7": 0.4,
+    "8": 0.5
+  },
+  "S_REPL": 5,
+  "S_NORM": 5,
+  "Q_CYCLE_MAX": 8,
+  "DT_RANGE": [
+    0.02,
+    0.1
+  ],
+  "PUMP_RANGE": [
+    0.6,
+    0.83
+  ],
+  "BETA_RANGE": [
+    0.1,
+    0.4
+  ],
+  "NOISE_RANGE": [
+    0.0,
+    0.02
+  ]
+}

@@ -1,0 +1,15 @@
+TO CHECK THE FIGURES: 
+
+1. (Create and) Activate a Python Environment, with Seaborn, Matplotlib, Numpy, Pathlib.
+ 
+2. In each Fig. Folder, there is the DATA folder with the figure(s) data. The PLOTS are the plots you should obtain (the one in the thesis). 
+
+Most importantly, there should be a script - this is the plotting script. Execute it, e.g. "python plot_annealed_dual.py", in the terminal, in the correct folder e.g. on my computer "cd cd '/Users/ange/Desktop/SVP_CIM_CPM/MSc Thesis - DATA/CPM Optimisation Sec 3.2/3rd Figure' " - that is the folder where the plotting script is. 
+
+3.Plots should appear in the folder "ASSESSOR_PLOTS" next to DATA PLOT and and the script.
+
+SUMMARY : 
+
+- 1. Pyenv environment with plotting packages.
+- 2. Execute the script with the terminal located at the script's folder.
+- 3. You may check ASSESSOR_PLOTS and compare it to PLOTS.
